@@ -3,6 +3,10 @@
 import json
 import tweepy
 
+def get_user(method, **kwargs):
+    user = method(raw_json={'return': True, 'parse': False}, **kwargs)
+    return json.loads(user)
+
 
 def get_users(method, **kwargs):
     """
