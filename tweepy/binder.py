@@ -28,6 +28,18 @@ def bind_api(**config):
         use_cache = config.get('use_cache', True)
 
         def __init__(self, api, args, kargs):
+            """
+            If you want to get raw json string instead of Tweepy object,
+            call method with additional arguments
+            `raw_json={'return': True, 'parse': False, 'data': None}`
+            json_string = api.get_user(
+                12345, raw_json={'return': True, 'parse': False, 'data': None})
+            If you want to parse raw json string to Tweepy object,
+            call method with additionl arguments
+            `raw_json={'return': True, 'parse': False, 'data': None}`
+            user = api.get_user(
+                raw_json={'return': False, 'parse': True, 'data': json_string})
+            """
             if 'raw_json' in kargs:
                 self.raw_json = kargs['raw_json']
             else:
