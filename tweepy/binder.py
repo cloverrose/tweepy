@@ -42,6 +42,7 @@ def bind_api(**config):
             """
             if 'raw_json' in kargs:
                 self.raw_json = kargs['raw_json']
+                del kargs['raw_json']
             else:
                 self.raw_json = {'return': False, 'parse': False, 'data': None}
 

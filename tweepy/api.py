@@ -187,8 +187,8 @@ class API(object):
     )
 
     """ Get the authenticated user """
-    def me(self):
-        return self.get_user(screen_name=self.auth.get_username())
+    def me(self, **kargs):
+        return self.get_user(screen_name=self.auth.get_username(), **kargs)
 
     """ users/search """
     search_users = bind_api(
