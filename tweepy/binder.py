@@ -28,9 +28,14 @@ def bind_api(**config):
         use_cache = config.get('use_cache', True)
 
         def __init__(self, api, args, kargs):
+            if 'raw_json' in kargs:
+                self.raw_json = kargs['raw_json']
+            else:
+                self.raw_json = {'return': False, 'parse': False, 'data': None}
+
             # If authentication is required and no credentials
             # are provided, throw an error.
-            if self.require_auth and not api.auth:
+            if self.require_auth and not api.auth and not self.raw_json['parse']:
                 raise TweepError('Authentication required!')
 
             self.api = api
@@ -102,85 +107,92 @@ def bind_api(**config):
                 self.path = self.path.replace(variable, value)
 
         def execute(self):
-            # Build the request URL
-            url = self.api_root + self.path
-            if len(self.parameters):
-                url = '%s?%s' % (url, urllib.urlencode(self.parameters))
+            if self.raw_json['parse']:
+                raw_json_data = self.raw_json['data']
+            else:
+                # Build the request URL
+                url = self.api_root + self.path
+                if len(self.parameters):
+                    url = '%s?%s' % (url, urllib.urlencode(self.parameters))
 
-            # Query the cache if one is available
-            # and this request uses a GET method.
-            if self.use_cache and self.api.cache and self.method == 'GET':
-                cache_result = self.api.cache.get(url)
-                # if cache result found and not expired, return it
-                if cache_result:
-                    # must restore api reference
-                    if isinstance(cache_result, list):
-                        for result in cache_result:
-                            if isinstance(result, Model):
-                                result._api = self.api
+                # Query the cache if one is available
+                # and this request uses a GET method.
+                if self.use_cache and self.api.cache and self.method == 'GET':
+                    cache_result = self.api.cache.get(url)
+                    # if cache result found and not expired, return it
+                    if cache_result:
+                        # must restore api reference
+                        if isinstance(cache_result, list):
+                            for result in cache_result:
+                                if isinstance(result, Model):
+                                    result._api = self.api
+                        else:
+                            if isinstance(cache_result, Model):
+                                cache_result._api = self.api
+                        return cache_result
+
+                # Continue attempting request until successful
+                # or maximum number of retries is reached.
+                retries_performed = 0
+                while retries_performed < self.retry_count + 1:
+                    # Open connection
+                    # FIXME: add timeout
+                    if self.api.secure:
+                        conn = httplib.HTTPSConnection(self.host)
                     else:
-                        if isinstance(cache_result, Model):
-                            cache_result._api = self.api
-                    return cache_result
+                        conn = httplib.HTTPConnection(self.host)
 
-            # Continue attempting request until successful
-            # or maximum number of retries is reached.
-            retries_performed = 0
-            while retries_performed < self.retry_count + 1:
-                # Open connection
-                # FIXME: add timeout
-                if self.api.secure:
-                    conn = httplib.HTTPSConnection(self.host)
-                else:
-                    conn = httplib.HTTPConnection(self.host)
+                    # Apply authentication
+                    if self.api.auth:
+                        self.api.auth.apply_auth(
+                                self.scheme + self.host + url,
+                                self.method, self.headers, self.parameters
+                        )
 
-                # Apply authentication
-                if self.api.auth:
-                    self.api.auth.apply_auth(
-                            self.scheme + self.host + url,
-                            self.method, self.headers, self.parameters
-                    )
+                    # Execute request
+                    try:
+                        conn.request(self.method, url, headers=self.headers, body=self.post_data)
+                        resp = conn.getresponse()
+                    except Exception, e:
+                        raise TweepError('Failed to send request: %s' % e)
 
-                # Execute request
-                try:
-                    conn.request(self.method, url, headers=self.headers, body=self.post_data)
-                    resp = conn.getresponse()
-                except Exception, e:
-                    raise TweepError('Failed to send request: %s' % e)
+                    # Exit request loop if non-retry error code
+                    if self.retry_errors:
+                        if resp.status not in self.retry_errors: break
+                    else:
+                        if resp.status == 200: break
 
-                # Exit request loop if non-retry error code
-                if self.retry_errors:
-                    if resp.status not in self.retry_errors: break
-                else:
-                    if resp.status == 200: break
+                    # Sleep before retrying request again
+                    time.sleep(self.retry_delay)
+                    retries_performed += 1
 
-                # Sleep before retrying request again
-                time.sleep(self.retry_delay)
-                retries_performed += 1
+                # If an error was returned, throw an exception
+                self.api.last_response = resp
+                if resp.status != 200:
+                    try:
+                        error_msg = self.api.parser.parse_error(resp.read())
+                    except Exception:
+                        error_msg = "Twitter error response: status code = %s" % resp.status
+                    raise TweepError(error_msg, resp)
 
-            # If an error was returned, throw an exception
-            self.api.last_response = resp
-            if resp.status != 200:
-                try:
-                    error_msg = self.api.parser.parse_error(resp.read())
-                except Exception:
-                    error_msg = "Twitter error response: status code = %s" % resp.status
-                raise TweepError(error_msg, resp)
+                # Parse the response payload
+                raw_json_data = resp.read()
+            if self.raw_json['return']:
+                result = raw_json_data
+            else:
+                result = self.api.parser.parse(self, raw_json_data)
 
-            # Parse the response payload
-            result = self.api.parser.parse(self, resp.read())
+            if not self.raw_json['parse']:
+                conn.close()
 
-            conn.close()
-
-            # Store result into cache if one is available.
-            if self.use_cache and self.api.cache and self.method == 'GET' and result:
-                self.api.cache.store(url, result)
+                # Store result into cache if one is available.
+                if self.use_cache and self.api.cache and self.method == 'GET' and result:
+                    self.api.cache.store(url, result)
 
             return result
 
 
     def _call(api, *args, **kargs):
-
         method = APIMethod(api, args, kargs)
         return method.execute()
 
