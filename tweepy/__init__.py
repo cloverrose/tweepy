@@ -16,7 +16,7 @@ from tweepy.cache import Cache, MemoryCache, FileCache
 from tweepy.auth import BasicAuthHandler, OAuthHandler
 from tweepy.streaming import Stream, StreamListener
 from tweepy.cursor import Cursor
-import tweepy.user_json_util as user_json_utils
+import tweepy.user_json_utils as user_json_utils
 
 # Global, unauthenticated instance of API
 api = API()
