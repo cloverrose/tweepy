@@ -30,9 +30,27 @@ def bind_api(**config):
         use_cache = config.get('use_cache', True)
 
         def __init__(self, api, args, kargs):
+            """
+            If you want to get raw json string instead of Tweepy object,
+            call method with additional arguments
+            `raw_json={'parse': False}`
+            json_string = api.get_user(
+                12345, raw_json={'parse': False})
+            If you want to parse raw json string to Tweepy object,
+            call method with additionl arguments
+            `raw_json={'parse': True, 'data': json_string}`
+            user = api.get_user(
+                raw_json={'parse': True, 'data': json_string})
+            """
+            if 'raw_json' in kargs:
+                self.raw_json = kargs['raw_json']
+                del kargs['raw_json']
+            else:
+                self.raw_json = {'parse': True}
+
             # If authentication is required and no credentials
             # are provided, throw an error.
-            if self.require_auth and not api.auth:
+            if self.require_auth and not api.auth and not self.raw_json['parse']:
                 raise TweepError('Authentication required!')
 
             self.api = api
@@ -104,6 +122,16 @@ def bind_api(**config):
                 self.path = self.path.replace(variable, value)
 
         def execute(self):
+            if 'data' in self.raw_json:
+                body = self.raw_json['data']
+            else:
+                body = self.execute_get()
+            if self.raw_json['parse']:
+                return self.execute_parse(body)
+            else:
+                return body
+
+        def execute_get(self):
             # Build the request URL
             url = self.api_root + self.path
             if len(self.parameters):
@@ -180,7 +208,6 @@ def bind_api(**config):
                     body = zipper.read()
                 except Exception, e:
                     raise TweepError('Failed to decompress data: %s' % e)
-            result = self.api.parser.parse(self, body)
 
             conn.close()
 
@@ -188,6 +215,10 @@ def bind_api(**config):
             if self.use_cache and self.api.cache and self.method == 'GET' and result:
                 self.api.cache.store(url, result)
 
+            return body
+
+        def execute_parse(self, body):
+            result = self.api.parser.parse(self, body)
             return result
 
 
