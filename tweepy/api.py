@@ -105,6 +105,19 @@ class API(object):
         require_auth = True
     )
 
+    """ status/update_with_media """
+    def update_status_with_media(self, filename, *args, **kargs):
+        headers, post_data = API._pack_image(filename, 3072, key='media[]')
+        bind_api(
+            path = '/statuses/update_with_media.json',
+            method = 'POST',
+            payload_type = 'status',
+            allowed_param = ['status', 'in_reply_to_status_id'],
+            require_auth = True,
+            upload_api = True,
+            secure = True
+        )(self, post_data=post_data, headers=headers, status=kargs.get('status', ''), in_reply_to_status_id=kargs.get('in_reply_to_status_id'))
+
     """ statuses/destroy """
     destroy_status = bind_api(
         path = '/statuses/destroy/{id}.json',
@@ -689,10 +702,9 @@ class API(object):
     @staticmethod
     def _pack_image(filename, max_size, key='image'):
         """Pack image from file into multipart-formdata post body"""
-        # image must be less than 700kb in size
         try:
             if os.path.getsize(filename) > (max_size * 1024):
-                raise TweepError('File is too big, must be less than 700kb.')
+                raise TweepError('File is too big, must be less than %dkb.' % max_size)
         except os.error:
             raise TweepError('Unable to access file')
 
@@ -725,4 +737,3 @@ class API(object):
         }
 
         return headers, body
-
