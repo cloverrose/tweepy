@@ -3,19 +3,6 @@
 # See LICENSE for details.
 
 import httplib
-# treat httplib.IncompleteRead Exception
-# http://bobrochel.blogspot.jp/2010/11/bad-servers-chunked-encoding-and.html
-def patch_http_response_read(func):
-    def inner(*args):
-        try:
-            return func(*args)
-        except httplib.IncompleteRead as e:
-            print 'except httplib.IncompleteRead', e
-            return e.partial
-
-    return inner
-httplib.HTTPResponse.read = patch_http_response_read(httplib.HTTPResponse.read)
-
 from socket import timeout
 from threading import Thread
 from time import sleep
