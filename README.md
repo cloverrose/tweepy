@@ -7,12 +7,12 @@ Installation
 The easiest way to install the latest version
 is by using pip/easy_install to pull it from PyPI:
 
-    pip install tweepy
+    pip install git+git://github.com/cloverrose/tweepy.git
 
 You may also use Git to clone the repository from
 Github and install it manually:
 
-    git clone https://github.com/tweepy/tweepy.git
+    git clone https://github.com/cloverrose/tweepy.git
     python setup.py install
 
 **Note** only Python 2.6 and 2.7 is supported at
